@@ -1,5 +1,6 @@
 import pygame
-from copy import deepcopy
+from threading import Thread
+import time
 
 '''
 -------------=[ Conway's Game of Life ]=------------- 
@@ -13,100 +14,102 @@ Rules (from https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life):
 -----------------------------------------------------
 '''
 
-board_x = 750
-board_y = 750
-pixel_size = 10
+# Changable parameters
+WINDOW_WIDTH = 750
+WINDOW_HEIGHT = 750
+BLOCK_SIZE = 5
+FPS_CAP = 60
+
+# Global game parameters
+alive_blocks = []
 started = False
+clock = pygame.time.Clock()
 
-board_pixels_x = int(board_x / pixel_size)
-board_pixels_y = int(board_y / pixel_size)
-
-board = [
-	[0 for x in range(board_pixels_x)] for y in range(board_pixels_y)
-]
-
-def is_in_bounds(x: int, y: int):
-	return x >= 0 and x < board_pixels_x and y >= 0 and y < board_pixels_y
-
-def get_neighbours(x: int, y: int) -> list[tuple[int]]:
+def get_neighbours(x: int, y: int) -> list[list[int]]:
 	neighbours = []
 
 	for x_off in range(-1, 2):
 		for y_off in range(-1, 2):
-			if x_off == 0 and y_off == 0:
-				pass
-			elif is_in_bounds(x + x_off, y + y_off):
-				neighbours.append((x + x_off, y + y_off))
+			if not (x_off == 0 and y_off == 0): # x_off = 0 and y_off = 0 means current block, so not a neighbour
+				neighbours.append([x + x_off, y + y_off])
 
 	return neighbours
 
 def game_of_life():
-	global board
-
-	cpy = deepcopy(board)
+	global alive_blocks
 	
-	for x in range(board_pixels_x):
-		for y in range(board_pixels_y):
-			alive = 0
+	next_blocks = []
 
-			for n in get_neighbours(x, y):
-				if board[n[1]][n[0]]:
+	for b in alive_blocks: # Loop over only the alive blocks, as dead blocks with dead neighbours will remain unchanged
+		neighbours = get_neighbours(b[0], b[1])
+
+		for n in neighbours:
+			n_neighbours = get_neighbours(n[0], n[1])
+			n_neighbours.remove(b)
+
+			alive = 1
+
+			for n_n in n_neighbours:
+				if n_n in alive_blocks:
 					alive += 1
 
-			if board[y][x]:
-				if alive < 2 or alive > 3:
-					cpy[y][x] = 0
-			elif alive == 3:
-				cpy[y][x] = 1
+			if alive == 3 and not n in next_blocks:
+				next_blocks.append(n)
+			elif n in alive_blocks and alive == 2 and not n in next_blocks:
+				next_blocks.append(n)
 
-	board = cpy
+	alive_blocks = next_blocks
+
+def run_simulation():
+	while started:
+		time.sleep(0.5)
+		game_of_life()
 
 def main():
 	global board, started
 
 	pygame.init()
-	pygame.display.set_mode((board_x, board_y))
+	pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 
 	surface = pygame.display.get_surface()
-	blank = pygame.Rect(0, 0, board_x, board_y)
-	copy_board = []
+	blank = pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
 
 	while True:
-		pygame.draw.rect(surface, (0, 0, 0), blank)
+		pygame.draw.rect(surface, (0, 0, 0), blank) # Clear screen
 
 		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
+			if event.type == pygame.QUIT: # Quit event
 				pygame.quit()
 				exit(0)
 
-			elif event.type == pygame.KEYDOWN:
-				if event.key == pygame.K_s:
-					if started:
-						board = copy_board
-					else:
-						copy_board = deepcopy(board)
-
+			elif event.type == pygame.KEYDOWN: # Key pressed events
+				if event.key == pygame.K_ESCAPE: # Escape Key
+					pygame.quit()
+					exit(0)
+				if event.key == pygame.K_s: # S Key
 					started = not started
-				elif event.key == pygame.K_c:
-					board = [
-						[0 for x in range(board_pixels_x)] for y in range(board_pixels_y)
-					]
 
-			elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-				if not started:
-					pos = event.pos
-					board[int(pos[1] / pixel_size)][int(pos[0] / pixel_size)] = int(not board[int(pos[1] / pixel_size)][int(pos[0] / pixel_size)])
+					if started:
+						game_thread = Thread(target=run_simulation, daemon=True)
+						game_thread.start()
+				elif event.key == pygame.K_c: # C Key
+					alive_blocks.clear()
 
-		if started:
-			game_of_life()
+			elif event.type == pygame.MOUSEBUTTONDOWN: # Mouse button pressed events
+				if event.button == 1 and not started: # Left click
+					pos = [int(p / BLOCK_SIZE) for p in event.pos]
 
-		for y in range(board_pixels_y):
-			for x in range(board_pixels_x):
-				if board[y][x]:
-					rect = pygame.Rect(x * pixel_size, y * pixel_size, pixel_size, pixel_size)
-					pygame.draw.rect(surface, (255, 255, 255), rect)
+					if pos in alive_blocks:
+						alive_blocks.remove(pos)
+					else:
+						alive_blocks.append(pos)
+
+		for b in alive_blocks: # Draw all alive blocks
+			rect = pygame.Rect(b[0] * BLOCK_SIZE, b[1] * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+			pygame.draw.rect(surface, (255, 255, 255), rect)
 
 		pygame.display.update()
+		clock.tick(FPS_CAP)
 
 if __name__ == '__main__':
 	main()
