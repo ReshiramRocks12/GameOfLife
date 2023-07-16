@@ -17,13 +17,17 @@ Rules (from https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life):
 # Changable parameters
 WINDOW_WIDTH = 750
 WINDOW_HEIGHT = 750
-BLOCK_SIZE = 5
+BLOCK_SIZE = 10
 FPS_CAP = 60
+SIMULATIONS_PER_SECOND = 10
 
 # Global game parameters
 alive_blocks = []
 started = False
 clock = pygame.time.Clock()
+view_offset = [0, 0]
+dx = 0
+dy = 0
 
 def get_neighbours(x: int, y: int) -> list[list[int]]:
 	neighbours = []
@@ -62,11 +66,11 @@ def game_of_life():
 
 def run_simulation():
 	while started:
-		time.sleep(0.5)
+		time.sleep(1 / SIMULATIONS_PER_SECOND)
 		game_of_life()
 
 def main():
-	global board, started
+	global board, started, dx, dy
 
 	pygame.init()
 	pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -86,7 +90,7 @@ def main():
 				if event.key == pygame.K_ESCAPE: # Escape Key
 					pygame.quit()
 					exit(0)
-				if event.key == pygame.K_s: # S Key
+				elif event.key == pygame.K_SPACE: # Space Key
 					started = not started
 
 					if started:
@@ -94,18 +98,37 @@ def main():
 						game_thread.start()
 				elif event.key == pygame.K_c: # C Key
 					alive_blocks.clear()
+				elif event.key == pygame.K_w:
+					dy = -1
+				elif event.key == pygame.K_a:
+					dx = -1
+				elif event.key == pygame.K_s:
+					dy = 1
+				elif event.key == pygame.K_d:
+					dx = 1
 
 			elif event.type == pygame.MOUSEBUTTONDOWN: # Mouse button pressed events
 				if event.button == 1 and not started: # Left click
-					pos = [int(p / BLOCK_SIZE) for p in event.pos]
+					pos = list(event.pos)
+					pos[0] = int(pos[0] / BLOCK_SIZE) + view_offset[0]
+					pos[1] = int(pos[1] / BLOCK_SIZE) + view_offset[1]
 
 					if pos in alive_blocks:
 						alive_blocks.remove(pos)
 					else:
 						alive_blocks.append(pos)
 
+			elif event.type == pygame.KEYUP:
+				if event.key == pygame.K_w or event.key == pygame.K_s:
+					dy = 0
+				elif event.key == pygame.K_a or event.key == pygame.K_d:
+					dx = 0
+
+		view_offset[0] += dx
+		view_offset[1] += dy
+
 		for b in alive_blocks: # Draw all alive blocks
-			rect = pygame.Rect(b[0] * BLOCK_SIZE, b[1] * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+			rect = pygame.Rect((b[0] - view_offset[0]) * BLOCK_SIZE, (b[1] - view_offset[1]) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 			pygame.draw.rect(surface, (255, 255, 255), rect)
 
 		pygame.display.update()
