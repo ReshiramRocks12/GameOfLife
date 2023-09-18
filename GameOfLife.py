@@ -1,6 +1,5 @@
 import pygame
 from threading import Thread
-import time
 
 '''
 -------------=[ Conway's Game of Life ]=------------- 
@@ -24,10 +23,6 @@ SIMULATIONS_PER_SECOND = 10
 # Global game parameters
 alive_blocks = []
 started = False
-clock = pygame.time.Clock()
-view_offset = [0, 0]
-dx = 0
-dy = 0
 
 def get_neighbours(x: int, y: int) -> list[list[int]]:
 	neighbours = []
@@ -65,18 +60,28 @@ def game_of_life():
 	alive_blocks = next_blocks
 
 def run_simulation():
-	while started:
-		time.sleep(1 / SIMULATIONS_PER_SECOND)
-		game_of_life()
+	sim_clock = pygame.time.Clock()
 
+	while started:
+		game_of_life()
+		sim_clock.tick(SIMULATIONS_PER_SECOND)
+		
 def main():
-	global board, started, dx, dy
+	global board, started
 
 	pygame.init()
 	pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+	
+	clock = pygame.time.Clock()
 
 	surface = pygame.display.get_surface()
 	blank = pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
+	
+	lclicked = False
+	rclicked = False
+	
+	w, a, s, d = [0] * 4
+	view_offset = [0, 0]
 
 	while True:
 		pygame.draw.rect(surface, (0, 0, 0), blank) # Clear screen
@@ -98,34 +103,54 @@ def main():
 						game_thread.start()
 				elif event.key == pygame.K_c: # C Key
 					alive_blocks.clear()
-				elif event.key == pygame.K_w:
-					dy = -1
-				elif event.key == pygame.K_a:
-					dx = -1
-				elif event.key == pygame.K_s:
-					dy = 1
-				elif event.key == pygame.K_d:
-					dx = 1
+					view_offset = [0, 0]
+				
+				if alive_blocks:
+					if event.key == pygame.K_w: # W Key
+						w = 1
+					elif event.key == pygame.K_a: # A Key
+						a = 1
+					elif event.key == pygame.K_s: # S Key
+						s = 1
+					elif event.key == pygame.K_d: # D Key
+						d = 1
 
-			elif event.type == pygame.MOUSEBUTTONDOWN: # Mouse button pressed events
-				if event.button == 1 and not started: # Left click
-					pos = list(event.pos)
-					pos[0] = int(pos[0] / BLOCK_SIZE) + view_offset[0]
-					pos[1] = int(pos[1] / BLOCK_SIZE) + view_offset[1]
-
-					if pos in alive_blocks:
-						alive_blocks.remove(pos)
-					else:
-						alive_blocks.append(pos)
-
+			elif event.type == pygame.MOUSEBUTTONDOWN and not started: # Mouse button pressed events
+				if event.button == 1 and not rclicked: # Left click
+					lclicked = True
+				elif event.button == 3 and not lclicked: # Right click
+					rclicked = True
+					
+			elif event.type == pygame.MOUSEBUTTONUP and not started:
+				if event.button == 1 and not rclicked: # Left click
+					lclicked = False
+				elif event.button == 3 and not lclicked: # Right click
+					rclicked = False
+					
 			elif event.type == pygame.KEYUP:
-				if event.key == pygame.K_w or event.key == pygame.K_s:
-					dy = 0
-				elif event.key == pygame.K_a or event.key == pygame.K_d:
-					dx = 0
+				if event.key == pygame.K_w: # W Key
+					w = 0
+				elif event.key == pygame.K_a: # A Key
+					a = 0
+				elif event.key == pygame.K_s: # S Key
+					s = 0
+				elif event.key == pygame.K_d: # D Key
+					d = 0
 
-		view_offset[0] += dx
-		view_offset[1] += dy
+		view_offset[0] += d - a
+		view_offset[1] += s - w
+		
+		if lclicked or rclicked:
+			pos = list(pygame.mouse.get_pos())
+			pos[0] = int(pos[0] / BLOCK_SIZE) + view_offset[0]
+			pos[1] = int(pos[1] / BLOCK_SIZE) + view_offset[1]
+
+			if pos in alive_blocks:
+				if rclicked:
+					alive_blocks.remove(pos)
+			else:
+				if lclicked:
+					alive_blocks.append(pos)
 
 		for b in alive_blocks: # Draw all alive blocks
 			rect = pygame.Rect((b[0] - view_offset[0]) * BLOCK_SIZE, (b[1] - view_offset[1]) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
