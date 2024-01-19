@@ -1,5 +1,6 @@
 import pygame
 from threading import Thread
+import math
 
 '''
 -------------=[ Conway's Game of Life ]=------------- 
@@ -34,8 +35,8 @@ def get_neighbours(x: int, y: int) -> list[list[int]]:
 
 	return neighbours
 
-def game_of_life():
-	global alive_blocks
+def game_of_life() -> None:
+	global alive_blocks, started
 	
 	next_blocks = []
 
@@ -56,17 +57,18 @@ def game_of_life():
 				next_blocks.append(n)
 			elif n in alive_blocks and alive == 2 and not n in next_blocks:
 				next_blocks.append(n)
+	
+	if started:
+		alive_blocks = next_blocks
 
-	alive_blocks = next_blocks
-
-def run_simulation():
+def run_simulation() -> None:
 	sim_clock = pygame.time.Clock()
 
 	while started:
 		game_of_life()
 		sim_clock.tick(SIMULATIONS_PER_SECOND)
 		
-def main():
+def main() -> None:
 	global board, started
 
 	pygame.init()
@@ -102,18 +104,19 @@ def main():
 						game_thread = Thread(target=run_simulation, daemon=True)
 						game_thread.start()
 				elif event.key == pygame.K_c: # C Key
+					started = False
 					alive_blocks.clear()
 					view_offset = [0, 0]
 				
 				if alive_blocks:
 					if event.key == pygame.K_w: # W Key
-						w = 1
+						w = 60
 					elif event.key == pygame.K_a: # A Key
-						a = 1
+						a = 60
 					elif event.key == pygame.K_s: # S Key
-						s = 1
+						s = 60
 					elif event.key == pygame.K_d: # D Key
-						d = 1
+						d = 60
 
 			elif event.type == pygame.MOUSEBUTTONDOWN and not started: # Mouse button pressed events
 				if event.button == 1 and not rclicked: # Left click
@@ -137,20 +140,20 @@ def main():
 				elif event.key == pygame.K_d: # D Key
 					d = 0
 
-		view_offset[0] += d - a
-		view_offset[1] += s - w
+		fps = clock.get_fps()
+		view_offset[0] += (d - a) / (fps if fps > 0 else FPS_CAP)
+		view_offset[1] += (s - w) / (fps if fps > 0 else FPS_CAP)
 		
 		if lclicked or rclicked:
 			pos = list(pygame.mouse.get_pos())
-			pos[0] = int(pos[0] / BLOCK_SIZE) + view_offset[0]
-			pos[1] = int(pos[1] / BLOCK_SIZE) + view_offset[1]
+			pos[0] = math.floor(pos[0] / BLOCK_SIZE + view_offset[0])
+			pos[1] = math.floor(pos[1] / BLOCK_SIZE + view_offset[1])
 
 			if pos in alive_blocks:
 				if rclicked:
 					alive_blocks.remove(pos)
-			else:
-				if lclicked:
-					alive_blocks.append(pos)
+			elif lclicked:
+				alive_blocks.append(pos)
 
 		for b in alive_blocks: # Draw all alive blocks
 			rect = pygame.Rect((b[0] - view_offset[0]) * BLOCK_SIZE, (b[1] - view_offset[1]) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
