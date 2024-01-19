@@ -18,12 +18,15 @@ Rules (from https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life):
 WINDOW_WIDTH = 750
 WINDOW_HEIGHT = 750
 BLOCK_SIZE = 10
-FPS_CAP = 60
+FPS_LIMIT = 60
+MAX_CAMERA_SPEED = 60
 SIMULATIONS_PER_SECOND = 10
 
 # Global game parameters
 alive_blocks = []
 started = False
+camera = [0, 0]
+view_offset = [0, 0]
 
 def get_neighbours(x: int, y: int) -> list[list[int]]:
 	neighbours = []
@@ -68,8 +71,54 @@ def run_simulation() -> None:
 		game_of_life()
 		sim_clock.tick(SIMULATIONS_PER_SECOND)
 		
+def on_key_down(key: int) -> None:
+	global started, camera, MAX_CAMERA_SPEED, view_offset
+
+	if key == pygame.K_ESCAPE: # Escape Key
+		pygame.quit()
+		exit(0)
+		
+	elif key == pygame.K_SPACE: # Space Key
+		started = not started
+
+		if started:
+			game_thread = Thread(target=run_simulation, daemon=True)
+			game_thread.start()
+			
+	elif key == pygame.K_c: # C Key
+		started = False
+		alive_blocks.clear()
+		view_offset = [0, 0]
+	
+	if alive_blocks:
+		if key == pygame.K_w: # W Key
+			camera[1] = max(camera[1] - MAX_CAMERA_SPEED, -MAX_CAMERA_SPEED)
+		elif key == pygame.K_s: # S Key
+			camera[1] = min(camera[1] + MAX_CAMERA_SPEED, MAX_CAMERA_SPEED)
+		elif key == pygame.K_a: # A Key
+			camera[0] = max(camera[0] - MAX_CAMERA_SPEED, -MAX_CAMERA_SPEED)
+		elif key == pygame.K_d: # D Key
+			camera[0] = min(camera[0] + MAX_CAMERA_SPEED, MAX_CAMERA_SPEED)
+			
+def on_key_up(key: int) -> None:
+	global camera, MAX_CAMERA_SPEED
+	
+	if key == pygame.K_w: # W Key
+		camera[1] = max(0, camera[1] + MAX_CAMERA_SPEED)
+	elif key == pygame.K_s: # S Key
+		camera[1] = min(0, camera[1] - MAX_CAMERA_SPEED)
+	elif key == pygame.K_a: # A Key
+		camera[0] = max(0, camera[0] + MAX_CAMERA_SPEED)
+	elif key == pygame.K_d: # D Key
+		camera[0] = min(0, camera[0] - MAX_CAMERA_SPEED)
+		
+def draw_blocks(surface: pygame.Surface) -> None:
+	for block in alive_blocks: # Draw all alive blocks
+		rect = pygame.Rect((block[0] - view_offset[0]) * BLOCK_SIZE, (block[1] - view_offset[1]) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+		pygame.draw.rect(surface, (255, 255, 255), rect)
+	
 def main() -> None:
-	global board, started
+	global board, camera, started, view_offset
 
 	pygame.init()
 	pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -78,12 +127,6 @@ def main() -> None:
 
 	surface = pygame.display.get_surface()
 	blank = pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT)
-	
-	lclicked = False
-	rclicked = False
-	
-	w, a, s, d = [0] * 4
-	view_offset = [0, 0]
 
 	while True:
 		pygame.draw.rect(surface, (0, 0, 0), blank) # Clear screen
@@ -94,73 +137,32 @@ def main() -> None:
 				exit(0)
 
 			elif event.type == pygame.KEYDOWN: # Key pressed events
-				if event.key == pygame.K_ESCAPE: # Escape Key
-					pygame.quit()
-					exit(0)
-				elif event.key == pygame.K_SPACE: # Space Key
-					started = not started
-
-					if started:
-						game_thread = Thread(target=run_simulation, daemon=True)
-						game_thread.start()
-				elif event.key == pygame.K_c: # C Key
-					started = False
-					alive_blocks.clear()
-					view_offset = [0, 0]
-				
-				if alive_blocks:
-					if event.key == pygame.K_w: # W Key
-						w = 60
-					elif event.key == pygame.K_a: # A Key
-						a = 60
-					elif event.key == pygame.K_s: # S Key
-						s = 60
-					elif event.key == pygame.K_d: # D Key
-						d = 60
-
-			elif event.type == pygame.MOUSEBUTTONDOWN and not started: # Mouse button pressed events
-				if event.button == 1 and not rclicked: # Left click
-					lclicked = True
-				elif event.button == 3 and not lclicked: # Right click
-					rclicked = True
-					
-			elif event.type == pygame.MOUSEBUTTONUP and not started:
-				if event.button == 1 and not rclicked: # Left click
-					lclicked = False
-				elif event.button == 3 and not lclicked: # Right click
-					rclicked = False
+				on_key_down(event.key)
 					
 			elif event.type == pygame.KEYUP:
-				if event.key == pygame.K_w: # W Key
-					w = 0
-				elif event.key == pygame.K_a: # A Key
-					a = 0
-				elif event.key == pygame.K_s: # S Key
-					s = 0
-				elif event.key == pygame.K_d: # D Key
-					d = 0
+				on_key_up(event.key)
 
 		fps = clock.get_fps()
-		view_offset[0] += (d - a) / (fps if fps > 0 else FPS_CAP)
-		view_offset[1] += (s - w) / (fps if fps > 0 else FPS_CAP)
+		view_offset[0] += camera[0] / (fps if fps > 0 else MAX_CAMERA_SPEED)
+		view_offset[1] += camera[1] / (fps if fps > 0 else MAX_CAMERA_SPEED)
 		
-		if lclicked or rclicked:
+		mouse_buttons = pygame.mouse.get_pressed()
+		
+		if mouse_buttons[0] or mouse_buttons[2]:
 			pos = list(pygame.mouse.get_pos())
 			pos[0] = math.floor(pos[0] / BLOCK_SIZE + view_offset[0])
 			pos[1] = math.floor(pos[1] / BLOCK_SIZE + view_offset[1])
 
 			if pos in alive_blocks:
-				if rclicked:
+				if mouse_buttons[2]:
 					alive_blocks.remove(pos)
-			elif lclicked:
+			elif mouse_buttons[0]:
 				alive_blocks.append(pos)
 
-		for b in alive_blocks: # Draw all alive blocks
-			rect = pygame.Rect((b[0] - view_offset[0]) * BLOCK_SIZE, (b[1] - view_offset[1]) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-			pygame.draw.rect(surface, (255, 255, 255), rect)
-
+		draw_blocks(surface)
+		
 		pygame.display.update()
-		clock.tick(FPS_CAP)
+		clock.tick(FPS_LIMIT)
 
 if __name__ == '__main__':
 	main()
