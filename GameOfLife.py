@@ -46,13 +46,13 @@ def game_of_life() -> None:
 	for b in alive_blocks: # Loop over only the alive blocks, as dead blocks with dead neighbours will remain unchanged
 		neighbours = get_neighbours(b[0], b[1])
 
-		for n in neighbours:
+		for n in neighbours: # Loop over the neighbours of the alive block
 			n_neighbours = get_neighbours(n[0], n[1])
-			n_neighbours.remove(b)
+			n_neighbours.remove(b) # Remove b as it is already known to be alive
 
-			alive = 1
+			alive = 1 # Set to 1 as it has at least 1 alive neighbour already
 
-			for n_n in n_neighbours:
+			for n_n in n_neighbours: # Look at the neighbour's neighbours and count the alive blocks around it
 				if n_n in alive_blocks:
 					alive += 1
 
@@ -65,6 +65,8 @@ def game_of_life() -> None:
 		alive_blocks = next_blocks
 
 def run_simulation() -> None:
+	global started	
+
 	sim_clock = pygame.time.Clock()
 
 	while started:
@@ -72,7 +74,7 @@ def run_simulation() -> None:
 		sim_clock.tick(SIMULATIONS_PER_SECOND)
 		
 def on_key_down(key: int) -> None:
-	global started, camera, MAX_CAMERA_SPEED, view_offset
+	global camera, MAX_CAMERA_SPEED, started, view_offset
 
 	if key == pygame.K_ESCAPE: # Escape Key
 		pygame.quit()
@@ -118,7 +120,7 @@ def draw_blocks(surface: pygame.Surface) -> None:
 		pygame.draw.rect(surface, (255, 255, 255), rect)
 	
 def main() -> None:
-	global board, camera, started, view_offset
+	global camera, started, view_offset
 
 	pygame.init()
 	pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -139,7 +141,7 @@ def main() -> None:
 			elif event.type == pygame.KEYDOWN: # Key pressed events
 				on_key_down(event.key)
 					
-			elif event.type == pygame.KEYUP:
+			elif event.type == pygame.KEYUP: # Key depressed events
 				on_key_up(event.key)
 
 		fps = clock.get_fps()
@@ -148,7 +150,7 @@ def main() -> None:
 		
 		mouse_buttons = pygame.mouse.get_pressed()
 		
-		if mouse_buttons[0] or mouse_buttons[2]:
+		if not started and (mouse_buttons[0] or mouse_buttons[2]):
 			pos = list(pygame.mouse.get_pos())
 			pos[0] = math.floor(pos[0] / BLOCK_SIZE + view_offset[0])
 			pos[1] = math.floor(pos[1] / BLOCK_SIZE + view_offset[1])
